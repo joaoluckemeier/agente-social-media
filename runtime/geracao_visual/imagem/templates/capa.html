@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+{{ESTILO_BASE}}
+<style>
+  .capa-foto { position: absolute; inset: 0; background-image: url('{{FOTO_DATA_URI}}');
+    background-size: cover; background-position: center; }
+  .capa-scrim { position: absolute; inset: 0; background: {{FUNDO}}; opacity: .84; }
+  .titulo--capa { font-size: 108px; }
+  .conteudo--capa { justify-content: flex-end; gap: 32px; }
+  .kicker { font-family: {{FAMILIA_CORPO}}; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .16em; font-size: 24px; color: {{DESTAQUE}}; }
+</style>
+</head>
+<body>
+  <div class="capa-foto"></div>
+  <div class="capa-scrim"></div>
+  <div class="quadro">
+    <div class="cabecalho">
+      <span>{{ARROBA}}</span>
+      <span class="arraste">{{INDICADOR_ARRASTE}}</span>
+    </div>
+    <div class="conteudo conteudo--capa">
+      <div class="kicker">Moveleiro.IA</div>
+      <div class="titulo titulo--capa">{{TITULO}}</div>
+      <div class="corpo">{{CORPO_HTML}}</div>
+    </div>
+    <div class="rodape">
+      <span class="linha"></span>
+      <span class="contador">{{CONTADOR}}</span>
+    </div>
+  </div>
+</body>
+</html>

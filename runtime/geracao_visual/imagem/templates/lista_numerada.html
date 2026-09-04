@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+{{ESTILO_BASE}}
+<style>
+  /* centrado no vão quando a lista é curta; encosta no topo se transbordar
+     (justify-content: safe center herdado de .conteudo) */
+  .conteudo--lista { gap: 44px; }
+  .titulo--lista { font-size: 78px; }
+  ol.lista { list-style: none; counter-reset: item; display: flex; flex-direction: column; gap: 30px; }
+  ol.lista li {
+    counter-increment: item; display: flex; gap: 28px; align-items: baseline;
+    font-size: 37px; line-height: 1.34;
+  }
+  ol.lista li::before {
+    content: counter(item, decimal-leading-zero);
+    font-family: {{FAMILIA_TITULO}}; font-weight: {{PESO_TITULO}};
+    font-size: 46px; color: {{DESTAQUE}}; min-width: 78px;
+  }
+</style>
+</head>
+<body>
+  <div class="quadro">
+    <div class="cabecalho">
+      <span>{{ARROBA}}</span>
+      <span class="arraste">{{INDICADOR_ARRASTE}}</span>
+    </div>
+    <div class="conteudo conteudo--lista">
+      <div class="titulo titulo--lista">{{TITULO}}</div>
+      <ol class="lista">{{ITENS_HTML}}</ol>
+    </div>
+    <div class="rodape">
+      <span class="linha"></span>
+      <span class="contador">{{CONTADOR}}</span>
+    </div>
+  </div>
+</body>
+</html>

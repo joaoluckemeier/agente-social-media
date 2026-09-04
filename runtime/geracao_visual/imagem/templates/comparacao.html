@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+{{ESTILO_BASE}}
+<style>
+  .conteudo--comp { justify-content: center; gap: 48px; }
+  .titulo--comp { font-size: 82px; }
+  .caixa {
+    border: 4px solid {{DESTAQUE}}; border-radius: 12px;
+    padding: 48px 44px; font-size: 40px; line-height: 1.4;
+  }
+  .caixa p + p { margin-top: 26px; }
+</style>
+</head>
+<body>
+  <div class="quadro">
+    <div class="cabecalho">
+      <span>{{ARROBA}}</span>
+      <span class="arraste">{{INDICADOR_ARRASTE}}</span>
+    </div>
+    <div class="conteudo conteudo--comp">
+      <div class="titulo titulo--comp">{{TITULO}}</div>
+      <div class="caixa">{{CORPO_HTML}}</div>
+    </div>
+    <div class="rodape">
+      <span class="linha"></span>
+      <span class="contador">{{CONTADOR}}</span>
+    </div>
+  </div>
+</body>
+</html>

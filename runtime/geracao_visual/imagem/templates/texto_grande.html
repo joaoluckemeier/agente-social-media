@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+{{ESTILO_BASE}}
+<style>
+  /* bloco (título + corpo) centrado no vão entre cabeçalho e rodapé — ver .conteudo */
+  .conteudo--tg { gap: 46px; }
+  .titulo--tg { font-size: 96px; }
+</style>
+</head>
+<body>
+  <div class="quadro">
+    <div class="cabecalho">
+      <span>{{ARROBA}}</span>
+      <span class="arraste">{{INDICADOR_ARRASTE}}</span>
+    </div>
+    <div class="conteudo conteudo--tg">
+      <div class="titulo titulo--tg">{{TITULO}}</div>
+      <div class="corpo">{{CORPO_HTML}}</div>
+    </div>
+    <div class="rodape">
+      <span class="linha"></span>
+      <span class="contador">{{CONTADOR}}</span>
+    </div>
+  </div>
+</body>
+</html>

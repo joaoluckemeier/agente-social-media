@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+{{ESTILO_BASE}}
+<style>
+  .conteudo--cta { justify-content: center; gap: 44px; text-align: left; }
+  .titulo--cta { font-size: 94px; }
+  .caixa-cta {
+    background: {{DESTAQUE}}; color: {{FUNDO}};
+    border-radius: 14px; padding: 46px 44px; font-size: 40px; line-height: 1.36;
+  }
+  .caixa-cta p + p { margin-top: 22px; }
+  .assinatura {
+    font-family: {{FAMILIA_CORPO}}; font-weight: 700; font-size: 28px;
+    letter-spacing: .02em;
+  }
+</style>
+</head>
+<body>
+  <div class="quadro">
+    <div class="cabecalho">
+      <span>{{ARROBA}}</span>
+      <span class="arraste">{{INDICADOR_ARRASTE}}</span>
+    </div>
+    <div class="conteudo conteudo--cta">
+      <div class="titulo titulo--cta">{{TITULO}}</div>
+      <div class="caixa-cta">{{CORPO_HTML}}</div>
+      <div class="assinatura">{{ARROBA}}</div>
+    </div>
+    <div class="rodape">
+      <span class="linha"></span>
+      <span class="contador">{{CONTADOR}}</span>
+    </div>
+  </div>
+</body>
+</html>

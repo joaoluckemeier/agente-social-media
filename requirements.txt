@@ -1,0 +1,20 @@
+# LLM (gerar_roteiro, autocritica_conteudo, pesquisar_tendencias_nicho) — OpenAI
+openai>=1.40.0
+
+# Geração de vídeo (reel) — Gemini (Veo)
+google-genai>=0.3.0
+
+# Motor de template de imagem (estático/carrossel) — renderiza HTML/CSS -> PNG
+# com Chromium headless. Depois de instalar: `playwright install chromium`.
+playwright>=1.47.0
+
+# Adapter de publicação (publicar_conteudo) — bundle.social — e Adapter de
+# fotos de estoque (Unsplash), ambos HTTP.
+requests>=2.31.0
+
+# .env
+python-dotenv>=1.0.1
+
+# parsing dos blocos yaml dentro dos contratos .md (comando `validar`), do
+# frontmatter de perfil-marca.md e do bloco de design tokens
+PyYAML>=6.0.1

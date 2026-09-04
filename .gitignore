@@ -1,0 +1,8 @@
+.env
+venv/
+__pycache__/
+*.pyc
+dados/agente.db
+dados/pecas/**
+dados/trace.json
+!dados/pecas/.gitkeep
