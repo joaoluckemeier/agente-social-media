@@ -5,7 +5,7 @@
 {{ESTILO_BASE}}
 <style>
   .split-foto {
-    position: absolute; top: 0; left: 0; right: 0; height: 640px;
+    position: absolute; top: 0; left: 0; right: 0; height: {{ALTURA_FOTO_SPLIT}}px;
     background-image: url('{{FOTO_DATA_URI}}'); background-size: cover; background-position: center;
   }
   .cabecalho--foto {
@@ -14,7 +14,7 @@
   }
   .cabecalho--foto .arraste { opacity: .9; }
   .split-texto {
-    position: absolute; top: 640px; left: 0; right: 0; bottom: 0;
+    position: absolute; top: {{ALTURA_FOTO_SPLIT}}px; left: 0; right: 0; bottom: 0;
     padding: 72px 90px 96px; display: flex; flex-direction: column; gap: 34px;
   }
   .titulo--foto { font-size: 74px; }

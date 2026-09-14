@@ -123,7 +123,15 @@ def montar_html(
     foto_uri = ""
     if foto_bytes:
         foto_uri = f"data:{foto_mime};base64,{base64.b64encode(foto_bytes).decode('ascii')}"
-
+    altura_total = int(dim.get("altura", 1350))
+    comprimento_corpo = len(str(slide.get("corpo", "") or ""))
+    if comprimento_corpo > 220:
+        altura_foto_split = int(altura_total * 0.32)
+    elif comprimento_corpo > 120:
+        altura_foto_split = int(altura_total * 0.40)
+    else:
+        altura_foto_split = int(altura_total * 0.47)
+    
     mostrar_contador = bool(rod.get("mostrar_contador", True)) and total > 1
     contador = f"{indice}/{total}" if mostrar_contador else ""
 
@@ -148,6 +156,7 @@ def montar_html(
         "CORPO_HTML": _paragrafos(slide.get("corpo", "")),
         "ITENS_HTML": _itens(slide.get("corpo", "")),
         "FOTO_DATA_URI": foto_uri,
+        "ALTURA_FOTO_SPLIT": str(altura_foto_split),
         "ESTILO_BASE": _ESTILO_BASE,
     }
 
