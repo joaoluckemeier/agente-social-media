@@ -1,0 +1,30 @@
+# systemd unit — casca HTTP interna do agente-social-media.
+# Instalar:
+#   sudo cp deploy/agente-social-media-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now agente-social-media-api
+#
+# Ajuste User/WorkingDirectory/paths ao ambiente real da VPS.
+
+[Unit]
+Description=agente-social-media — casca HTTP interna (127.0.0.1)
+After=network.target
+
+[Service]
+Type=simple
+User=joao
+WorkingDirectory=/home/joao/agents/agente-social-media
+EnvironmentFile=/home/joao/agents/agente-social-media/.env
+# python -m api.app recusa subir se AGENTE_API_HOST != 127.0.0.1
+ExecStart=/home/joao/agents/agente-social-media/venv/bin/python -m api.app
+Restart=on-failure
+RestartSec=2
+# Endurecimento básico
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/joao/agents/agente-social-media/dados /home/joao/agents/agente-social-media/config-exemplo
+
+[Install]
+WantedBy=multi-user.target

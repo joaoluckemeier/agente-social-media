@@ -1,0 +1,15 @@
+# Casca HTTP interna (api/) — separada do requirements.txt do runtime.
+# Instalar no MESMO venv do agente:  pip install -r requirements-api.txt
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+# pydantic e python-dotenv já vêm do requirements.txt do runtime;
+# repetidos aqui só pra a casca poder ser instalada isolada se precisar.
+pydantic>=2.7.0
+python-dotenv>=1.0.1
+PyYAML>=6.0.1
+
+# dev/test da casca
+pytest>=8.2.0
+httpx>=0.27.0        # fastapi.testclient
+

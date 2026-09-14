@@ -208,6 +208,47 @@ def comando_rastreamento(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# comando: retomar (execução suspensa numa aprovação — normalmente disparada
+# pela casca HTTP; este comando é a via manual/simetria pelo terminal)
+# --------------------------------------------------------------------------
+def comando_retomar(args: argparse.Namespace) -> int:
+    from .aprovacao.gateway_fila import GatewayAprovacaoFila
+
+    agente_dir = Path(args.agente).resolve()
+    _carregar_env(agente_dir)
+    perfil = carregar_perfil(args.perfil)
+    memoria = SQLiteMemoriaRepository(_db_path(agente_dir))
+    trace = ciclo_mod.trace_para_retomada(_trace_path(agente_dir), args.execucao_id)
+
+    try:
+        resultado = ciclo_mod.retomar_ciclo(
+            execucao_id=args.execucao_id,
+            perfil=perfil,
+            memoria=memoria,
+            trace=trace,
+            gateway=GatewayAprovacaoFila(memoria),
+        )
+    except ciclo_mod.RunSuspensa as suspensa:
+        print(
+            f"\n[suspensa de novo] execução {args.execucao_id} parou na "
+            f"aprovação de '{suspensa.etapa}' (pendência {suspensa.aprovacao_id}).",
+            file=sys.stderr,
+        )
+        return 1
+    except (NotImplementedError, ErroConfiguracaoAusente) as exc:
+        print(f"\n[interrompido] {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(f"retomar: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        memoria.close()
+
+    print(json.dumps(resultado, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _montar_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agente-social-media")
     subparsers = parser.add_subparsers(dest="comando", required=True)
@@ -239,6 +280,15 @@ def _montar_parser() -> argparse.ArgumentParser:
     )
     p_rastreamento.add_argument("--agente", required=False, default=".")
     p_rastreamento.set_defaults(func=comando_rastreamento)
+
+    p_retomar = subparsers.add_parser(
+        "retomar",
+        help="retoma uma execução suspensa numa aprovação (após a decisão ser registrada)",
+    )
+    p_retomar.add_argument("--agente", required=True)
+    p_retomar.add_argument("--perfil", required=True)
+    p_retomar.add_argument("--execucao-id", required=True, dest="execucao_id")
+    p_retomar.set_defaults(func=comando_retomar)
 
     return parser
 

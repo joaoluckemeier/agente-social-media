@@ -408,7 +408,10 @@ def decidir_proxima_acao(
         )
 
     # roteiro aprovado ---------------------------------------------------
-    memoria.guardar_memoria(
+    # guardar_memoria_unica: numa retomada (fila de aprovação) o planejador
+    # re-passa este checkpoint a cada segmento — sem o dedup, `roteiro_aprovado`
+    # cresceria uma linha por retomada à toa (ver contracts/loop.md).
+    memoria.guardar_memoria_unica(
         execucao_id,
         "roteiro_aprovado",
         {"slides": slides_atual, "roteiro": roteiro_texto, "formato": formato},
@@ -544,7 +547,7 @@ def decidir_proxima_acao(
 
     # peça visual aprovada — registrado na memória antes de liberar publicar_conteudo
     # (regra explícita de planner.md/rules.md: nunca por inferência).
-    memoria.guardar_memoria(
+    memoria.guardar_memoria_unica(
         execucao_id,
         "roteiro_aprovado",
         {"pecas_urls": pecas_urls_atual, "status_aprovacao": "aprovado", "etapa": "visual"},

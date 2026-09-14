@@ -14,11 +14,13 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
+from .aprovacao import GatewayAprovacao, RunSuspensa
+from .aprovacao.gateway_cli import GatewayAprovacaoCLI
 from .executor import ConfirmacaoHumanaNegada, LimiteDeChamadasExcedido, executar_ferramenta
 from .memoria import MemoriaRepository
 from .perfil_loader import PerfilMarca
 from .planejador import FORMATO_PADRAO, decidir_proxima_acao, roteiro_como_texto
-from .trace import Trace
+from .trace import Trace, carregar_trace
 
 # loop.md
 OBJETIVO = "gerar_conteudo_engajante_conectado_a_oferta"
@@ -114,13 +116,29 @@ def executar_ciclo(
     memoria: MemoriaRepository,
     trace: Trace,
     formato: str = FORMATO_PADRAO,
+    gateway: GatewayAprovacao | None = None,
+    segundos_ja_gastos: float = 0.0,
 ) -> dict[str, Any]:
+    # gateway padrão = CLI síncrono (comportamento de sempre). A casca HTTP
+    # passa GatewayAprovacaoFila; nesse caso solicitar_aprovacao_humana pode
+    # levantar RunSuspensa e a execução é suspensa até a decisão chegar.
+    gateway = gateway or GatewayAprovacaoCLI()
+    modo_fila = not isinstance(gateway, GatewayAprovacaoCLI)
+
     tempo_inicio = time.monotonic()
     condicao_parada: CondicaoParada | None = None
     pergunta_anterior: str | None = None
+    pergunta_para_operador: str | None = None  # só preenchida em aguardando_intervencao_operador
+
+    def _segundos_ativos() -> float:
+        # loop.md: limite_tempo_segundos conta só processamento ativo — o
+        # tempo em que a execução ficou suspensa esperando decisão humana
+        # (modo fila) fica de fora, senão uma aprovação que demora um dia
+        # dispararia limite_tempo_excedido por engano.
+        return segundos_ja_gastos + (time.monotonic() - tempo_inicio)
 
     for etapa in range(1, MAX_ETAPAS + 1):
-        if time.monotonic() - tempo_inicio > LIMITE_TEMPO_SEGUNDOS:
+        if _segundos_ativos() > LIMITE_TEMPO_SEGUNDOS:
             condicao_parada = "limite_tempo_excedido"
             break
 
@@ -128,7 +146,11 @@ def executar_ciclo(
             memoria=memoria, execucao_id=execucao_id, perfil=perfil, entrada=entrada, formato=formato
         )
         trace.antes_da_etapa(etapa=etapa, decisao=asdict(decisao))
-        memoria.guardar_memoria(execucao_id, "decisao_do_planejador", asdict(decisao))
+        # unica: numa retomada, os primeiros passos re-derivam decisões já
+        # registradas (mesma etapa de aprovação antes/depois da suspensão) —
+        # o dedup evita inflar memoria_curta. Não afeta lógica: nenhum módulo
+        # lê `decisao_do_planejador` (é espelho do trace).
+        memoria.guardar_memoria_unica(execucao_id, "decisao_do_planejador", asdict(decisao))
 
         if decisao.proxima_acao == "FINALIZAR":
             trace.apos_etapa(etapa=etapa, resultado="finalizado")
@@ -136,6 +158,22 @@ def executar_ciclo(
             break
 
         if decisao.proxima_acao == "PERGUNTAR_USUARIO":
+            if modo_fila:
+                # Sem stdin no worker da casca HTTP. PERGUNTAR_USUARIO aqui
+                # (perfil incompleto, feedback vazio, pedido de métricas) pede
+                # intervenção do operador — pára com um motivo claro em vez de
+                # travar o thread num input(). O operador corrige e redispara.
+                memoria.guardar_memoria(
+                    execucao_id, "feedback_de_aprovacao",
+                    {"pergunta": decisao.pergunta, "resposta": None, "origem": "fila"},
+                )
+                trace.apos_etapa(
+                    etapa=etapa, resultado="aguardando_intervencao_operador",
+                    pergunta=decisao.pergunta,
+                )
+                condicao_parada = "aguardando_intervencao_operador"
+                pergunta_para_operador = decisao.pergunta
+                break
             # loop.md não lista PERGUNTAR_USUARIO como condição de parada —
             # o ciclo continua após a resposta. Guarda contra loop infinito:
             # se a mesma pergunta reaparecer sem nada ter mudado no estado
@@ -165,7 +203,21 @@ def executar_ciclo(
                 execucao_id=execucao_id,
                 memoria=memoria,
                 trace=trace,
+                gateway=gateway,
             )
+        except RunSuspensa as suspensa:
+            # gateway de fila: pendência criada, ninguém decidiu ainda. Anexa
+            # o tempo ativo acumulado (pra retomada continuar a contagem de
+            # limite_tempo daqui) e propaga — quem orquestra persiste o
+            # estado 'suspensa'.
+            suspensa.segundos_ativos = _segundos_ativos()
+            trace.apos_etapa(
+                etapa=etapa,
+                resultado="suspenso_para_aprovacao",
+                etapa_aprovacao=suspensa.etapa,
+                aprovacao_id=suspensa.aprovacao_id,
+            )
+            raise
         except ConfirmacaoHumanaNegada:
             condicao_parada = "confirmacao_humana_negada"
             trace.apos_etapa(etapa=etapa, resultado="confirmacao_humana_negada")
@@ -215,6 +267,10 @@ def executar_ciclo(
         "status_aprovacao": estado["status_aprovacao"],
         "status_publicacao": estado["status_publicacao"],
         "motivo_parada": condicao_parada,
+        # extensão (Etapa 3, front-end): só presente quando motivo_parada é
+        # aguardando_intervencao_operador — o worker persiste em
+        # execucao_ativa.pergunta_aberta pra a interface poder mostrá-la.
+        "pergunta_aberta": pergunta_para_operador,
     }
 
     if condicao_parada == "objetivo_alcancado":
@@ -232,6 +288,46 @@ def executar_ciclo(
         )
 
     return resultado
+
+
+def retomar_ciclo(
+    *,
+    execucao_id: str,
+    perfil: PerfilMarca,
+    memoria: MemoriaRepository,
+    trace: Trace,
+    gateway: GatewayAprovacao,
+) -> dict[str, Any]:
+    """Retoma uma execução suspensa (gateway de fila). Lê `entrada`/`formato`
+    e o tempo ativo já gasto de `execucao_ativa`; o planejador reconstrói
+    todo o resto a partir de `memoria_curta` + a decisão recém-registrada em
+    `aprovacoes`. Mesmo caminho de validação de `executar_ciclo` — nada
+    paralelo."""
+    est = memoria.buscar_execucao_ativa(execucao_id)
+    if est is None:
+        raise ValueError(f"execução {execucao_id} não encontrada em execucao_ativa")
+    if est["estado"] not in ("suspensa", "rodando"):
+        raise ValueError(
+            f"execução {execucao_id} está '{est['estado']}' — não dá pra retomar"
+        )
+    return executar_ciclo(
+        execucao_id=execucao_id,
+        entrada=est.get("entrada"),
+        perfil=perfil,
+        memoria=memoria,
+        trace=trace,
+        formato=est.get("formato") or FORMATO_PADRAO,
+        gateway=gateway,
+        segundos_ja_gastos=float(est.get("segundos_ativos") or 0.0),
+    )
+
+
+def trace_para_retomada(caminho, execucao_id: str) -> Trace:
+    """Reabre o trace.json da execução pra APENDAR eventos na retomada, em vez
+    de truncar. Se o arquivo for de outra execução, começa vazio."""
+    previo = carregar_trace(caminho)
+    eventos = previo["eventos"] if previo and previo.get("execucao_id") == execucao_id else []
+    return Trace(execucao_id=execucao_id, caminho_arquivo=caminho, eventos=list(eventos))
 
 
 def _agora_iso() -> str:

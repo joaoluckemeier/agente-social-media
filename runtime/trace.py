@@ -9,6 +9,8 @@ de "log" — é o ponto onde a confirmação humana é exigida (ver executor.py)
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,14 +79,30 @@ class Trace:
         return self.registrar("em_erro", dados)
 
     def _persistir(self) -> None:
+        """Escrita atômica (tmp + os.replace): `carregar_trace` pode ser
+        chamado por outro thread/request a qualquer momento — `GET
+        /execucoes/{id}/trace` (Etapa 3) lê este arquivo enquanto o worker
+        pode estar no meio de um `apos_etapa`/`apos_acao` seguinte. Um
+        `open('w')` direto trunca o arquivo antes de escrever; um leitor
+        concorrente nessa janela pega JSON vazio/parcial (`JSONDecodeError`).
+        tmp + replace garante que quem lê sempre vê um JSON completo — o
+        anterior ou o novo, nunca um estado no meio."""
         self.caminho_arquivo.parent.mkdir(parents=True, exist_ok=True)
-        with self.caminho_arquivo.open("w", encoding="utf-8") as f:
-            json.dump(
-                {"execucao_id": self.execucao_id, "eventos": self.eventos},
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
+        fd, tmp_nome = tempfile.mkstemp(
+            dir=self.caminho_arquivo.parent, prefix=".trace-", suffix=".json.tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(
+                    {"execucao_id": self.execucao_id, "eventos": self.eventos},
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            os.replace(tmp_nome, self.caminho_arquivo)
+        finally:
+            if os.path.exists(tmp_nome):
+                os.unlink(tmp_nome)
 
 
 def carregar_trace(caminho_arquivo: Path) -> dict[str, Any] | None:

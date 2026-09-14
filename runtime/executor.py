@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from . import ErroConfiguracaoAusente
+from .aprovacao import GatewayAprovacao, RunSuspensa
+from .aprovacao.gateway_cli import GatewayAprovacaoCLI
 from .ferramentas import ENTRADA_ESPERADA, REGISTRY
 from .memoria import MemoriaRepository
 from .trace import Trace
@@ -104,15 +106,10 @@ def _verificar_limites(memoria: MemoriaRepository, execucao_id: str, nome_ferram
             )
 
 
-def _confirmar_acao_sensivel(nome_ferramenta: str, argumentos: dict[str, Any]) -> bool:
-    """v1: pergunta síncrona no CLI (pedido explícito do usuário — a política
-    final de rules.md já prevê um dia isso mudar sem reescrever o resto)."""
-    print("\n[CONFIRMAÇÃO NECESSÁRIA — ação sensível]")
-    print(f"  ferramenta: {nome_ferramenta}")
-    for chave, valor in argumentos.items():
-        print(f"  {chave}: {valor}")
-    resposta = input("Confirmar execução? [s/N]: ").strip().lower()
-    return resposta in ("s", "sim", "y", "yes")
+# A confirmação de acao_sensivel e a aprovação de conteúdo (roteiro/visual)
+# agora passam por um GatewayAprovacao (runtime/aprovacao/) — CLI síncrono por
+# padrão, ou fila assíncrona quando a casca HTTP orquestra. rules.md já prevê
+# essa troca "sem reescrever o resto".
 
 
 def _politica_retry(
@@ -150,10 +147,13 @@ def _chamar_com_retry(
             with ThreadPoolExecutor(max_workers=1) as executor_thread:
                 futuro = executor_thread.submit(funcao, **argumentos)
                 return futuro.result(timeout=timeout)
-        except (NotImplementedError, ErroConfiguracaoAusente):
+        except (NotImplementedError, ErroConfiguracaoAusente, RunSuspensa):
             # falha permanente, não transitória (ferramenta não escrita ou
             # credencial deliberadamente ausente) — repassar na hora, sem
             # queimar retry/backoff tentando de novo algo que nunca muda.
+            # RunSuspensa: não é erro — é o gateway de fila pedindo pra
+            # suspender a execução até a decisão humana chegar; retentar só
+            # criaria pendências duplicadas.
             raise
         except FuturoTimeoutError as exc:
             ultima_excecao = exc
@@ -174,7 +174,12 @@ def executar_ferramenta(
     execucao_id: str,
     memoria: MemoriaRepository,
     trace: Trace,
+    gateway: GatewayAprovacao | None = None,
 ) -> ResultadoExecucao:
+    # gateway padrão = CLI síncrono (comportamento de sempre). A casca HTTP
+    # passa GatewayAprovacaoFila.
+    gateway = gateway or GatewayAprovacaoCLI()
+
     # executor.md: validar_entrada
     _validar_entrada(nome_ferramenta, argumentos_ferramenta)
     _verificar_limites(memoria, execucao_id, nome_ferramenta)
@@ -184,9 +189,16 @@ def executar_ferramenta(
         ferramenta=nome_ferramenta, argumentos=argumentos_ferramenta, acao_sensivel=eh_sensivel
     )
 
-    if eh_sensivel and not _confirmar_acao_sensivel(nome_ferramenta, argumentos_ferramenta):
-        trace.em_erro(ferramenta=nome_ferramenta, erro="confirmação humana negada")
-        raise ConfirmacaoHumanaNegada(f"{nome_ferramenta}: confirmação negada pelo usuário")
+    if eh_sensivel:
+        # pode levantar RunSuspensa (gateway de fila) — propaga sem virar erro.
+        confirmada = gateway.confirmar_acao_sensivel(
+            execucao_id=execucao_id,
+            nome_ferramenta=nome_ferramenta,
+            argumentos=argumentos_ferramenta,
+        )
+        if not confirmada:
+            trace.em_erro(ferramenta=nome_ferramenta, erro="confirmação humana negada")
+            raise ConfirmacaoHumanaNegada(f"{nome_ferramenta}: confirmação negada pelo usuário")
 
     # regeneração parcial (extensão — ver ferramentas/gerar_peca_visual.py)
     # só gera len(indices_para_regenerar) peças, não o carrossel inteiro.
@@ -200,8 +212,14 @@ def executar_ferramenta(
     funcao = REGISTRY[nome_ferramenta]
 
     # contexto extra injetado em toda ferramenta (absorvido via **_ nos
-    # stubs); cada implementação usa só o que precisar.
-    argumentos_com_contexto = {**argumentos_ferramenta, "memoria": memoria}
+    # stubs); cada implementação usa só o que precisar. `gateway`/`execucao_id`
+    # são pra solicitar_aprovacao_humana delegar a decisão ao gateway.
+    argumentos_com_contexto = {
+        **argumentos_ferramenta,
+        "memoria": memoria,
+        "gateway": gateway,
+        "execucao_id": execucao_id,
+    }
 
     saida = _chamar_com_retry(
         funcao,

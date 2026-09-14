@@ -5,4 +5,12 @@ __pycache__/
 dados/agente.db
 dados/pecas/**
 dados/trace.json
+dados/.trace-*.json.tmp
+dados/trace-api.jsonl
+dados/perfis/
+# perfil-marca.md real do tenant (dados/, editado via PUT /perfil) — dado de
+# runtime, não fonte versionada. O exemplo versionado é config-exemplo/.
+dados/perfil-marca.md
+dados/agente.db-wal
+dados/agente.db-shm
 !dados/pecas/.gitkeep
