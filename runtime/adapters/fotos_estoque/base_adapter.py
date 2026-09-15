@@ -18,15 +18,19 @@ class Foto:
     mime: str
     credito: str  # atribuição exigida pela licença (ex: "Foto de Fulano / Unsplash")
     origem_url: str
+    foto_id: str | None = None
 
 
 class FotoEstoqueAdapter(ABC):
     @abstractmethod
-    def buscar_foto(self, query: str, *, orientacao: str = "portrait", pular: int = 0) -> Foto:
+    def buscar_foto(self, query: str, *, orientacao: str = "portrait", pular: int = 0, ids_evitar: set[str] | None = None,) -> Foto:
         """Busca uma foto real e licenciada para `query` e devolve os bytes
         já baixados. `orientacao`: portrait | landscape | squarish. `pular`:
         quantos resultados iniciais ignorar (regeneração pede uma foto
-        diferente da anterior).
+        diferente da anterior). `ids_evitar`: ids de fotos já usadas no MESMO
+        post (outros slides) — o adapter deve preferir um resultado fora
+        desse conjunto antes de aplicar `pular`, pra não repetir a mesma foto
+        entre slides diferentes de um mesmo carrossel.
 
         Levanta ErroConfiguracaoAusente se faltar credencial, e RuntimeError
         se a busca não retornar nenhuma foto utilizável."""

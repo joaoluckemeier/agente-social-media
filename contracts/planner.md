@@ -39,7 +39,7 @@ regras:
   - usar PERGUNTAR_USUARIO quando:
       - o feedback de uma reprovação (roteiro ou visual) não tiver
         informação suficiente pra ajustar sozinho
-      - `perfil-marca.md` estiver ausente ou sem as seções obrigatórias
+      - o arquivo `perfil-marca.md` estiver ausente ou sem as seções obrigatórias
         (ICP, Marca, Oferta) no início da execução
   - este agente nunca coleta nem analisa métricas — se o usuário pedir isso
     no meio da execução, a resposta correta é PERGUNTAR_USUARIO explicando

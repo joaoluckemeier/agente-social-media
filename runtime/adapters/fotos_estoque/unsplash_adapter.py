@@ -65,10 +65,12 @@ class UnsplashAdapter(FotoEstoqueAdapter):
         resposta.raise_for_status()
         return (resposta.json() or {}).get("results") or []
 
-    def buscar_foto(self, query: str, *, orientacao: str = "portrait", pular: int = 0) -> Foto:
+    def buscar_foto(self, query: str, *, orientacao: str = "portrait", pular: int = 0, ids_evitar: set[str] | None = None,) -> Foto:
         cabecalhos = {"Authorization": f"Client-ID {self._chave()}", "Accept-Version": "v1"}
         pular = max(0, int(pular))
-        per_page = min(pular + 1, 10)
+        ids_evitar = ids_evitar or set()
+        # pede mais resultados quando há IDs pra evitar, pra ter de onde escolher
+        per_page = min(pular + 1 + len(ids_evitar), 10)
 
         query = (query or "").strip()
         tentativas = [query]
@@ -90,7 +92,8 @@ class UnsplashAdapter(FotoEstoqueAdapter):
                 f"(nem para a versão simplificada {simples!r})."
             )
 
-        foto = resultados[min(pular, len(resultados) - 1)]
+        candidatos = [r for r in resultados if r.get("id") not in ids_evitar] or resultados
+        foto = candidatos[min(pular, len(candidatos) - 1)]
         urls = foto.get("urls") or {}
         url_imagem = urls.get("raw") or urls.get("regular") or urls.get("full")
         if not url_imagem:
@@ -116,4 +119,5 @@ class UnsplashAdapter(FotoEstoqueAdapter):
             mime=img.headers.get("Content-Type", "image/jpeg").split(";")[0].strip(),
             credito=f"Foto de {autor} / Unsplash",
             origem_url=(foto.get("links") or {}).get("html", url_imagem),
+            foto_id=foto.get("id"),
         )

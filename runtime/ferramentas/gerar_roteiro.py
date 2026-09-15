@@ -57,8 +57,10 @@ substituir o vendedor, nunca use tecniquês de IA sem tradução pro dia a dia \
 de quem toca uma loja de móveis/marcenaria.
 - Pode e deve usar ganchos virais de dor real da loja, mas o post não é \
 viral por viral — precisa fechar conectando com a oferta.
-- CTA não precisa ser "compre agora": pode ser diagnóstico gratuito, \
-comentário, ou salvar o post.
+- CTA nunca é "compre agora" — pode ser diagnóstico gratuito ou
+  comentário, por exemplo. Mas cada post tem UMA ÚNICA CTA, nunca
+  mais de uma opção competindo entre si (ex: "diagnóstico no link
+  da bio" OU "comente DIAGNÓSTICO" — nunca as duas juntas no mesmo post).
 
 Se a entrada trouxer "insights_anteriores" com itens de fonte \
 "autocritica_conteudo" ou "feedback_humano_roteiro", esses são AJUSTES que \
@@ -99,6 +101,12 @@ SEMPRE curta e genérica: 2 a 4 palavras, nunca uma frase composta ou \
 descritiva. Bom: "furniture store", "wood workshop", "person smartphone", \
 "kitchen cabinets", "carpenter working". Ruim (não faça): "furniture store \
 owner on smartphone in showroom", "carpentry workshop interior with tools". \
+SE HOUVER MAIS DE UM slide com `consulta_foto` no mesmo post, cada busca \
+precisa ser DIFERENTE e específica pro conteúdo daquele slide — nunca \
+repita o mesmo termo genérico do nicho em dois slides (ex: não use \
+"furniture store" duas vezes no mesmo post; varie entre termos como \
+"furniture store", "carpenter working", "person smartphone" conforme o que \
+cada slide especificamente mostra). \
 Nunca peça foto de robô/IA. Nos demais layouts, omita a chave.
 
 Adapte a quantidade de slides ao formato pedido:

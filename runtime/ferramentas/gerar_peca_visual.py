@@ -70,7 +70,7 @@ def _slide_pede_foto(slide: dict[str, Any]) -> bool:
 
 
 def _buscar_foto(
-    slide: dict[str, Any], adapter: FotoEstoqueAdapter, *, ajustes: Any, pular: int
+    slide: dict[str, Any], adapter: FotoEstoqueAdapter, *, ajustes: Any, pular: int, ids_evitar: set[str] | None = None,
 ) -> Foto:
     query = str(slide.get("consulta_foto") or "").strip()
     if ajustes:
@@ -78,7 +78,7 @@ def _buscar_foto(
         extra = " ".join(map(str, ajustes)) if isinstance(ajustes, (list, tuple)) else str(ajustes)
         query = f"{query} {extra}".strip()
     orientacao = _ORIENTACAO_POR_LAYOUT.get(slide.get("tipo_layout"), "portrait")
-    return adapter.buscar_foto(query, orientacao=orientacao, pular=pular)
+    return adapter.buscar_foto(query, orientacao=orientacao, pular=pular, ids_evitar=ids_evitar)
 
 
 def _gerar_imagens(
@@ -109,10 +109,15 @@ def _gerar_imagens(
 
     htmls: list[str] = []
     nomes: list[str | None] = []
+    ids_usados: set[str] = set()
     for pos in posicoes:
         slide = slides[pos]
-        foto = _buscar_foto(slide, foto_adapter, ajustes=ajustes if regeneracao_parcial else None, pular=pular_foto) \
+        foto = _buscar_foto(slide, foto_adapter, ajustes=ajustes if regeneracao_parcial else None, pular=pular_foto, ids_evitar=ids_usados) \
             if _slide_pede_foto(slide) else None
+        
+        if foto and foto.foto_id:
+            ids_usados.add(foto.foto_id)
+            
         htmls.append(
             montar_html(
                 slide,
