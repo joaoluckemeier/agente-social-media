@@ -32,14 +32,18 @@ habilidades:
       uma das 3 frentes de oferta. A saída é estruturada por slide, não um
       texto solto — cada slide já indica que tipo de layout de template usar
       (ver decisoes-de-engenharia.md, seção 2), pra garantir que o texto
-      completo sempre chegue certo na peça visual.
+      completo sempre chegue certo na peça visual. Também gera a legenda e
+      as hashtags do post (separadas dos slides — a legenda complementa o
+      carrossel no feed, não repete o texto dele).
     entrada:
       tema: string
       perfil: object
       insights_anteriores: list
       formato: string   # reel | carrossel | estatico
     saida:
-      slides: list   # cada item: {ordem, tipo_layout, titulo, corpo}
+      slides: list      # cada item: {ordem, tipo_layout, titulo, corpo}
+      legenda: string   # texto autônomo pro feed — gancho + contexto + CTA
+      hashtags: list    # 3 a 5, do catálogo de perfil-marca.md (seção Hashtags)
       formato: string
 
   - nome: autocritica_conteudo

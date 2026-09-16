@@ -36,6 +36,12 @@ def _mostrar_peca(peca: dict[str, Any], etapa: str) -> None:
             if consulta:
                 print(f"      [foto: {consulta}]")
             print()
+        legenda = (peca.get("legenda") or "").strip()
+        print("Legenda (post — não repete o carrossel, complementa):")
+        for linha in (legenda or "(vazia)").splitlines():
+            print(f"  {linha}")
+        hashtags = peca.get("hashtags") or []
+        print(f"\nHashtags: {' '.join(hashtags) if hashtags else '(nenhuma)'}")
     elif etapa == "visual":
         pecas_urls = peca.get("pecas_urls") or []
         print(f"Formato: {peca.get('formato', '')}")

@@ -7,10 +7,17 @@ frentes de oferta.
 Saída estruturada por slide (skills.md / agent.md `contrato_saida` — decisão
 revista, ver decisoes-de-engenharia.md, seção 2): `slides` é uma lista de
 objetos `{ordem, tipo_layout, titulo, corpo}` — cada slide já indica que
-template o motor de `gerar_peca_visual` deve renderizar. Não existe mais um
-campo `roteiro` de texto solto: onde o pipeline precisa do roteiro como
-texto (legenda de publicação, exibição na aprovação, chave de comparação no
-planejador), ele é derivado dos slides — ver `planejador._roteiro_texto`.
+template o motor de `gerar_peca_visual` deve renderizar. Não existe um
+campo `roteiro` de texto solto separado dos slides: onde o pipeline precisa
+do roteiro como texto (exibição na aprovação, chave de comparação no
+planejador), ele é derivado dos slides — ver `planejador.roteiro_como_texto`.
+
+Extensão de engenharia (decisão revista — legenda de Instagram não deveria
+repetir o carrossel palavra por palavra): a saída também traz `legenda`
+(texto curto e autônomo pro feed, complementa os slides em vez de repeti-
+los) e `hashtags` (3 a 5, do catálogo em perfil-marca.md, seção
+"Hashtags"). `planejador.py` usa esses dois campos — não mais o texto
+derivado dos slides — como a legenda de verdade em `publicar_conteudo`.
 
 Provedor: OpenAI via `OPENAI_MODEL_ROTEIRO` (decisoes-de-engenharia.md,
 seção 12 — tier intermediário; qualidade criativa importa mais aqui do que
@@ -22,6 +29,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import unicodedata
 from typing import Any
 
 from openai import OpenAI
@@ -115,13 +124,30 @@ chegar no CTA. Se notar título e corpo desconectados, ou um salto sem \
 lógica entre dois slides, corrija antes de responder — não é aceitável \
 entregar assim e deixar pra autocrítica pegar depois.
 
-FORMATO DE SAÍDA — o roteiro é uma lista de SLIDES estruturados. Responda \
-SOMENTE em JSON, no formato exato:
+Legenda e hashtags (acompanham o carrossel/post no feed — NÃO substituem \
+nem repetem os slides):
+- "legenda": texto curto e autônomo pra leitura corrida no feed — o gancho \
+reescrito (não copie a frase do slide 1 literalmente, reformule pro \
+formato de legenda) + 1-2 frases de contexto + a MESMA CTA do slide de \
+fechamento (mesma ideia, pode reformular a frase). Mesmo tom do perfil de \
+marca. Nunca repita o carrossel inteiro na legenda — ela complementa, é \
+lida separada; quem já viu os slides não precisa reler tudo de novo ali.
+- "hashtags": 3 a 5 hashtags, escolhidas do catálogo em \
+`perfil_marca.hashtags` (chaves: `fixas`, `nicho`, `frente_demanda`, \
+`frente_atendimento` — perfil-marca.md, seção "Hashtags"). Inclua sempre \
+as de `fixas`; complete com hashtags de `nicho` e da frente do problema \
+que ESSE post aborda (frente_demanda ou frente_atendimento — ver \
+Mecanismo, acima). Varie a combinação de post pra post — não repita \
+sempre o mesmo conjunto exato (mesmo raciocínio da variedade de gancho, \
+acima).
+
+FORMATO DE SAÍDA — o roteiro é uma lista de SLIDES estruturados, mais \
+legenda e hashtags. Responda SOMENTE em JSON, no formato exato:
 {"slides": [
   {"ordem": 1, "tipo_layout": "capa", "titulo": "...", "corpo": "...",
    "consulta_foto": "..."},
   ...
-]}
+], "legenda": "...", "hashtags": ["#...", "#..."]}
 
 Regras de estrutura:
 - `ordem`: inteiro sequencial começando em 1.
@@ -161,7 +187,12 @@ Adapte a quantidade de slides ao formato pedido:
 - "carrossel": entre 5 e 9 slides. Slide 1 sempre `capa`; último normalmente `cta`.
 - "estatico": EXATAMENTE 1 slide (capa ou texto_grande), texto curto.
 - "reel": EXATAMENTE 1 slide, `tipo_layout` "capa", `titulo` = gancho falado, \
-`corpo` = o roteiro de narração completo (fala/locução, direta, com CTA no fim).\
+`corpo` = o roteiro de narração completo (fala/locução, direta, com CTA no fim).
+
+NUNCA inclua um slide com `titulo` E `corpo` vazios — todo slide carrega \
+conteúdo real. Se não sobrar ideia genuína pra preencher mais um slide \
+dentro da faixa pedida, prefira um roteiro com menos slides (respeitando o \
+mínimo do formato) a incluir um slide em branco só pra bater uma contagem.\
 """
 
 
@@ -187,32 +218,103 @@ def _modelo() -> str:
 
 def _normalizar_slides(slides_brutos: Any) -> list[dict[str, Any]]:
     """Blinda a saída do modelo: ordem sequencial, tipo_layout no enum,
-    strings limpas, consulta_foto só onde faz sentido."""
+    strings limpas, consulta_foto só onde faz sentido. Slide sem `titulo` E
+    sem `corpo` (dado vindo de fora — nunca confiar sem checar, mesmo o
+    prompt proibindo) é descartado: nunca renderizável, e ia virar uma peça
+    visual em branco."""
     if not isinstance(slides_brutos, list) or not slides_brutos:
         raise RuntimeError(
             "gerar_roteiro: resposta do modelo não trouxe uma lista `slides` "
             "não-vazia — verificar prompt/model/resposta bruta."
         )
     slides: list[dict[str, Any]] = []
-    for i, bruto in enumerate(slides_brutos, start=1):
+    for bruto in slides_brutos:
         if not isinstance(bruto, dict):
             continue
         tipo = str(bruto.get("tipo_layout") or "").strip()
         if tipo not in TIPOS_LAYOUT_VALIDOS:
             tipo = _TIPO_LAYOUT_FALLBACK
-        slide: dict[str, Any] = {
-            "ordem": i,
-            "tipo_layout": tipo,
-            "titulo": str(bruto.get("titulo") or "").strip(),
-            "corpo": str(bruto.get("corpo") or "").strip(),
-        }
+        titulo = str(bruto.get("titulo") or "").strip()
+        corpo = str(bruto.get("corpo") or "").strip()
+        if not titulo and not corpo:
+            continue
+        slide: dict[str, Any] = {"tipo_layout": tipo, "titulo": titulo, "corpo": corpo}
         consulta = str(bruto.get("consulta_foto") or "").strip()
         if consulta and tipo in _LAYOUTS_COM_FOTO:
             slide["consulta_foto"] = consulta
         slides.append(slide)
     if not slides:
         raise RuntimeError("gerar_roteiro: nenhum slide válido na resposta do modelo.")
+    # `ordem` sequencial sobre os slides que sobraram — nunca com buracos
+    # (slide não-dict ou vazio descartado no meio não deixa gap no contador
+    # nem no nome de arquivo — ver ferramentas/gerar_peca_visual._nome_peca).
+    for i, slide in enumerate(slides, start=1):
+        slide["ordem"] = i
     return slides
+
+
+def _normalizar_legenda(legenda_bruta: Any, slides: list[dict[str, Any]]) -> str:
+    """Blinda a saída do modelo: string, .strip(). Vazia cai num fallback
+    mínimo (titulo+corpo do slide 1) — nunca publicar sem legenda nenhuma."""
+    legenda = str(legenda_bruta or "").strip()
+    if legenda:
+        return legenda
+    primeiro = slides[0]
+    return "\n\n".join(x for x in (primeiro.get("titulo"), primeiro.get("corpo")) if x)
+
+
+_HASHTAGS_MAX = 5
+_HASHTAG_SEM_CONTEUDO_RE = re.compile(r"[^a-z0-9_]")
+
+
+def _normalizar_hashtag(bruta: str) -> str | None:
+    """minúsculo, sem acento (normaliza unicode — "rápida" -> "rapida", não
+    descarta a letra), sem espaço interno (junta as palavras — modelo às
+    vezes manda "# venda rápida" em vez de "#vendarapida"), sempre
+    começando com #. Sem conteúdo aproveitável, devolve None."""
+    sem_acento = unicodedata.normalize("NFKD", str(bruta or "")).encode("ascii", "ignore").decode("ascii")
+    texto = re.sub(r"\s+", "", sem_acento.strip().lower())
+    texto = texto.lstrip("#")
+    texto = _HASHTAG_SEM_CONTEUDO_RE.sub("", texto)
+    return f"#{texto}" if texto else None
+
+
+def _normalizar_hashtags(hashtags_brutas: Any, perfil: dict[str, Any]) -> list[str]:
+    """Blinda a saída do modelo: strings normalizadas, sem duplicata,
+    truncado em 5. Vazia (ou nada aproveitável) cai no catálogo do perfil —
+    fixas primeiro, depois nicho e as frentes, na ordem que existirem (ver
+    perfil_loader._extrair_hashtags) — nunca hardcoded em Python. Só volta
+    vazio se o catálogo inteiro também estiver vazio (seção "Hashtags"
+    ausente ou irreconhecível pro parser)."""
+    vistas: set[str] = set()
+    hashtags: list[str] = []
+    if isinstance(hashtags_brutas, list):
+        for bruta in hashtags_brutas:
+            if not isinstance(bruta, str):
+                continue
+            normalizada = _normalizar_hashtag(bruta)
+            if normalizada and normalizada not in vistas:
+                vistas.add(normalizada)
+                hashtags.append(normalizada)
+    if hashtags:
+        return hashtags[:_HASHTAGS_MAX]
+
+    catalogo = (perfil or {}).get("hashtags") or {}
+    candidatas = (
+        (catalogo.get("fixas") or [])
+        + (catalogo.get("nicho") or [])
+        + (catalogo.get("frente_demanda") or [])
+        + (catalogo.get("frente_atendimento") or [])
+    )
+    fallback: list[str] = []
+    for bruta in candidatas:
+        if len(fallback) >= _HASHTAGS_MAX:
+            break
+        normalizada = _normalizar_hashtag(bruta) if isinstance(bruta, str) else None
+        if normalizada and normalizada not in vistas:
+            vistas.add(normalizada)
+            fallback.append(normalizada)
+    return fallback
 
 
 def gerar_roteiro(
@@ -224,7 +326,7 @@ def gerar_roteiro(
     temas_recentes: list[str] | None = None,
     **_: Any,
 ) -> dict[str, Any]:
-    """entrada: {tema, perfil, insights_anteriores, formato} · saida: {slides, formato}"""
+    """entrada: {tema, perfil, insights_anteriores, formato} · saida: {slides, legenda, hashtags, formato}"""
     cliente = OpenAI(api_key=_chave_openai())
     entrada_usuario = json.dumps(
         {
@@ -248,8 +350,11 @@ def gerar_roteiro(
     )
 
     dados = json.loads(resposta.choices[0].message.content)
+    slides = _normalizar_slides(dados.get("slides"))
     saida: dict[str, Any] = {
-        "slides": _normalizar_slides(dados.get("slides")),
+        "slides": slides,
+        "legenda": _normalizar_legenda(dados.get("legenda"), slides),
+        "hashtags": _normalizar_hashtags(dados.get("hashtags"), perfil),
         "formato": formato,
     }
 

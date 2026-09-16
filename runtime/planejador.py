@@ -312,6 +312,8 @@ def decidir_proxima_acao(
     slides_atual: list[dict[str, Any]] = ultimo_roteiro["saida"].get("slides") or []
     roteiro_texto = roteiro_como_texto(slides_atual)
     conteudo_roteiro = _slides_json(slides_atual)
+    legenda_atual: str = ultimo_roteiro["saida"].get("legenda") or ""
+    hashtags_atual: list[str] = ultimo_roteiro["saida"].get("hashtags") or []
 
     # 4. autocritica_conteudo(tipo=roteiro) -- só sobre a versão mais nova
     autocriticas_roteiro = [
@@ -354,6 +356,8 @@ def decidir_proxima_acao(
                         "tema": tema,
                         "slides": slides_atual,
                         "roteiro": roteiro_texto,
+                        "legenda": legenda_atual,
+                        "hashtags": hashtags_atual,
                         "formato": formato,
                     },
                     "etapa": "roteiro",
@@ -401,6 +405,8 @@ def decidir_proxima_acao(
                     "tema": tema,
                     "slides": slides_atual,
                     "roteiro": roteiro_texto,
+                    "legenda": legenda_atual,
+                    "hashtags": hashtags_atual,
                     "formato": formato,
                 },
                 "etapa": "roteiro",
@@ -444,6 +450,8 @@ def decidir_proxima_acao(
                         "tema": tema,
                         "slides": slides_atual,
                         "roteiro": roteiro_texto,
+                        "legenda": legenda_atual,
+                        "hashtags": hashtags_atual,
                         "formato": formato,
                         "nota": (
                             "As 3 tentativas de gerar_roteiro já foram usadas nesta "
@@ -703,10 +711,11 @@ def decidir_proxima_acao(
             argumentos_ferramenta={
                 "pecas_urls": pecas_urls_atual,
                 "rede": perfil.rede or "instagram",
-                # adaptação documentada: skills.md não separa "legenda" de
-                # "roteiro" — usamos o roteiro aprovado (texto derivado dos
-                # slides) como legenda.
-                "legenda": roteiro_texto,
+                # legenda de verdade (gerar_roteiro.py) + hashtags no final,
+                # separadas por linha em branco (padrão de legenda de
+                # Instagram) — nunca mais o roteiro_texto (repetiria o
+                # carrossel inteiro na legenda, que deve só complementar).
+                "legenda": f"{legenda_atual}\n\n{' '.join(hashtags_atual)}".rstrip(),
             },
             criterio_sucesso="status_publicacao=publicado retornado pelo adapter",
         )
