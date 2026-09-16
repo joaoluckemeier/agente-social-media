@@ -90,7 +90,8 @@ def _gerar_imagens(
     indices_para_regenerar: list[int] | None,
     ajustes: Any,
     foto_adapter: FotoEstoqueAdapter,
-) -> list[str]:
+    ids_evitar_historico: list[str] | None = None,
+) -> tuple[list[str], list[str]]:
     total = len(slides)
     regeneracao_parcial = bool(
         pecas_urls_existentes
@@ -109,15 +110,20 @@ def _gerar_imagens(
 
     htmls: list[str] = []
     nomes: list[str | None] = []
-    ids_usados: set[str] = set()
+    # `ids_usados` nasce pré-carregado com o histórico entre execuções
+    # (memoria.fotos_usadas_recentes, via planejador.py) — o adapter evita
+    # repetir tanto essas quanto as já usadas nos slides deste MESMO post.
+    ids_usados: set[str] = set(ids_evitar_historico or [])
+    fotos_novas: list[str] = []
     for pos in posicoes:
         slide = slides[pos]
         foto = _buscar_foto(slide, foto_adapter, ajustes=ajustes if regeneracao_parcial else None, pular=pular_foto, ids_evitar=ids_usados) \
             if _slide_pede_foto(slide) else None
-        
+
         if foto and foto.foto_id:
             ids_usados.add(foto.foto_id)
-            
+            fotos_novas.append(foto.foto_id)
+
         htmls.append(
             montar_html(
                 slide,
@@ -133,7 +139,7 @@ def _gerar_imagens(
     caminhos = motor_de(identidade_visual).renderizar_varios(htmls, nomes)
     for pos, caminho in zip(posicoes, caminhos):
         pecas_urls[pos] = caminho
-    return [c for c in pecas_urls if c is not None]
+    return [c for c in pecas_urls if c is not None], fotos_novas
 
 
 def gerar_peca_visual(
@@ -147,6 +153,7 @@ def gerar_peca_visual(
     indices_para_regenerar: list[int] | None = None,
     ajustes: Any = None,
     foto_adapter: FotoEstoqueAdapter | None = None,
+    ids_evitar_historico: list[str] | None = None,
     **_: Any,
 ) -> dict[str, Any]:
     """entrada: {slides, formato} (+ extensões internas) · saida: {pecas_urls: list, formato}"""
@@ -170,7 +177,7 @@ def gerar_peca_visual(
             f"(esperado: reel | carrossel | estatico)"
         )
 
-    pecas_urls = _gerar_imagens(
+    pecas_urls, fotos_novas = _gerar_imagens(
         slides=slides,
         identidade_visual=identidade_visual,
         post_id=post_id,
@@ -178,7 +185,13 @@ def gerar_peca_visual(
         indices_para_regenerar=indices_para_regenerar,
         ajustes=ajustes,
         foto_adapter=foto_adapter or UnsplashAdapter(),
+        ids_evitar_historico=ids_evitar_historico,
     )
     # motor de template + foto de estoque grátis => custo de imagem ~zero;
     # nada de `_custo` a reportar (decisoes-de-engenharia.md, seção 12).
-    return {"pecas_urls": pecas_urls, "formato": formato}
+    saida = {"pecas_urls": pecas_urls, "formato": formato}
+    if fotos_novas:
+        # chave interna consumida por executor.py — não faz parte do
+        # contrato de saída de skills.md (mesmo padrão de `_custo`).
+        saida["_fotos_usadas"] = fotos_novas
+    return saida

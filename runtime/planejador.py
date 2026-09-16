@@ -428,6 +428,7 @@ def decidir_proxima_acao(
     ultimo_visual = tentativas_visual[-1] if tentativas_visual else None
 
     if ultimo_visual is None:
+        ids_evitar_historico = memoria.fotos_usadas_recentes(limite=50)
         return Decisao(
             proxima_acao="CHAMAR_FERRAMENTA",
             nome_ferramenta="gerar_peca_visual",
@@ -436,6 +437,7 @@ def decidir_proxima_acao(
                 "formato": formato,
                 "identidade_visual": identidade_visual,
                 "post_id": post_id,
+                "ids_evitar_historico": ids_evitar_historico,
             },
             criterio_sucesso=(
                 f"peça(s) visual(is) geradas — {len(slides_roteiro)} esperada(s), "
@@ -479,6 +481,7 @@ def decidir_proxima_acao(
             "identidade_visual": identidade_visual,
             "post_id": post_id,
             "ajustes": ajustes,
+            "ids_evitar_historico": memoria.fotos_usadas_recentes(limite=50),
         }
         if indices_com_problema and len(pecas_urls_atual) == len(slides_roteiro):
             # regenera só as peças apontadas, não o carrossel inteiro
@@ -538,6 +541,7 @@ def decidir_proxima_acao(
                 "pecas_urls_existentes": pecas_urls_atual,
                 "indices_para_regenerar": list(range(1, len(pecas_urls_atual) + 1)),
                 "ajustes": [feedback],
+                "ids_evitar_historico": memoria.fotos_usadas_recentes(limite=50),
             },
             criterio_sucesso="novo conjunto de peças incorporando o feedback humano",
         )

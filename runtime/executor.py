@@ -221,6 +221,15 @@ def executar_ferramenta(
             execucao_id, "custo_ferramenta", {"ferramenta": nome_ferramenta, **custo}
         )
 
+    # fotos usadas nesta chamada de gerar_peca_visual, pra memória entre
+    # execuções não repetir a mesma foto de capa/foto_split em POSTS
+    # diferentes (chave interna `_fotos_usadas`, mesmo padrão de `_custo`
+    # acima — não faz parte do contrato de saída de skills.md).
+    fotos_usadas = saida.pop("_fotos_usadas", None)
+    if fotos_usadas:
+        for foto_id in fotos_usadas:
+            memoria.registrar_foto_usada(execucao_id, foto_id)
+
     trace.apos_acao(ferramenta=nome_ferramenta, saida=saida, custo=custo)
 
     # executor.md: pos_execucao.avaliar_resultado — persistido pra o

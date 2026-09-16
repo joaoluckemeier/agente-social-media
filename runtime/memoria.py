@@ -85,6 +85,17 @@ class MemoriaRepository(ABC):
     def buscar_resumo_final(self, execucao_id: str) -> dict[str, Any] | None:
         ...
 
+    # -- fotos usadas (evitar repetir capa/foto_split entre POSTS
+    # diferentes — complementa o ids_evitar já existente dentro do mesmo
+    # post em ferramentas/gerar_peca_visual.py) ------------------------
+    @abstractmethod
+    def registrar_foto_usada(self, execucao_id: str, foto_id: str) -> None:
+        ...
+
+    @abstractmethod
+    def fotos_usadas_recentes(self, limite: int) -> list[str]:
+        ...
+
     # -- cache (decisoes-de-engenharia.md, seção 4: cache curto só em
     # pesquisar_tendencias_nicho) — extensão de engenharia, não faz parte
     # de nenhum contrato de saída; vive atrás do Repository como tudo mais
@@ -152,6 +163,14 @@ class SQLiteMemoriaRepository(MemoriaRepository):
                 chave TEXT PRIMARY KEY,
                 valor TEXT NOT NULL,
                 expira_em TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS fotos_usadas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execucao_id TEXT NOT NULL,
+                foto_id TEXT NOT NULL,
+                criado_em TEXT NOT NULL,
+                UNIQUE(execucao_id, foto_id)
             );
             """
         )
@@ -293,6 +312,22 @@ class SQLiteMemoriaRepository(MemoriaRepository):
             (chave, json.dumps(valor, ensure_ascii=False), expira_em),
         )
         self._conn.commit()
+
+    # -- fotos usadas ----------------------------------------------------
+    def registrar_foto_usada(self, execucao_id: str, foto_id: str) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO fotos_usadas (execucao_id, foto_id, criado_em) VALUES (?, ?, ?)",
+            (execucao_id, foto_id, _agora_iso()),
+        )
+        self._conn.commit()
+
+    def fotos_usadas_recentes(self, limite: int) -> list[str]:
+        rows = self._conn.execute(
+            "SELECT foto_id, MAX(criado_em) AS ultima FROM fotos_usadas "
+            "GROUP BY foto_id ORDER BY ultima DESC LIMIT ?",
+            (limite,),
+        ).fetchall()
+        return [row["foto_id"] for row in rows]
 
     def close(self) -> None:
         self._conn.close()
