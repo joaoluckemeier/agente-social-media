@@ -15,6 +15,12 @@ def _mostrar_peca(peca: dict[str, Any], etapa: str) -> None:
     print(f"\n{'=' * 60}")
     print(f"APROVAÇÃO — etapa: {etapa}")
     print("=" * 60)
+    nota = (peca.get("nota") or "").strip()
+    if nota:
+        # extensão — não é do contrato de skills.md (`peca: object` é livre):
+        # aviso do planejador quando não há mais orçamento de regeneração
+        # automática (rules.md: chamadas_ferramenta) pra essa etapa.
+        print(f"[NOTA] {nota}\n")
     if etapa == "roteiro":
         print(f"Tema: {peca.get('tema', '')}")
         print(f"Formato: {peca.get('formato', '')}")

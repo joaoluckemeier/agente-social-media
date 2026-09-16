@@ -336,6 +336,36 @@ def decidir_proxima_acao(
 
     if not autocritica_roteiro_atual["saida"].get("aprovado_internamente"):
         ajustes = autocritica_roteiro_atual["saida"].get("ajustes_sugeridos", [])
+
+        # blindagem estrutural: regenerar de novo aqui estouraria
+        # chamadas_ferramenta.gerar_roteiro (rules.md: 3) — a execução caía
+        # em sem_progresso sem NUNCA mostrar nenhuma versão do roteiro pro
+        # usuário, nem a última (só reprovada internamente, nunca por um
+        # humano). Último recurso: mostra o roteiro atual pra aprovação
+        # humana em vez de insistir numa regeneração que o limite não
+        # deixaria completar — melhor um humano decidir sobre algo
+        # imperfeito do que a execução morrer sem mostrar nada.
+        if len(tentativas_roteiro) >= 3:
+            return Decisao(
+                proxima_acao="CHAMAR_FERRAMENTA",
+                nome_ferramenta="solicitar_aprovacao_humana",
+                argumentos_ferramenta={
+                    "peca": {
+                        "tema": tema,
+                        "slides": slides_atual,
+                        "roteiro": roteiro_texto,
+                        "formato": formato,
+                    },
+                    "etapa": "roteiro",
+                },
+                criterio_sucesso=(
+                    "usuário decide aprovado=True/False pro roteiro — última "
+                    "tentativa de gerar_roteiro já usada e a autocrítica ainda "
+                    "não aprovou; melhor o humano decidir do que a execução "
+                    "morrer sem mostrar nada"
+                ),
+            )
+
         return Decisao(
             proxima_acao="CHAMAR_FERRAMENTA",
             nome_ferramenta="gerar_roteiro",
@@ -396,6 +426,42 @@ def decidir_proxima_acao(
                 criterio_sucesso="usuário fornece feedback específico o suficiente pra ajustar o roteiro",
                 pergunta="O roteiro foi reprovado sem feedback. O que exatamente precisa mudar?",
             )
+
+        # blindagem estrutural (mesmo padrão do branch de reprovação
+        # interna, acima): incorporar esse feedback estouraria
+        # chamadas_ferramenta.gerar_roteiro (rules.md: 3). Em vez de tentar
+        # e morrer em sem_progresso, devolve o roteiro atual pra aprovação
+        # humana de novo, com uma nota explicando que não há mais
+        # tentativas automáticas — o usuário decide: aprova como está
+        # (segue pro visual) ou continua reprovando (a execução para por
+        # max_etapas_excedido, nunca por uma falha silenciosa).
+        if len(tentativas_roteiro) >= 3:
+            return Decisao(
+                proxima_acao="CHAMAR_FERRAMENTA",
+                nome_ferramenta="solicitar_aprovacao_humana",
+                argumentos_ferramenta={
+                    "peca": {
+                        "tema": tema,
+                        "slides": slides_atual,
+                        "roteiro": roteiro_texto,
+                        "formato": formato,
+                        "nota": (
+                            "As 3 tentativas de gerar_roteiro já foram usadas nesta "
+                            "execução (rules.md) — esse feedback não pode mais ser "
+                            "incorporado automaticamente. Aprove como está pra seguir "
+                            "pra peça visual, ou reprove de novo se preferir abandonar "
+                            "esta execução (ela vai parar por limite de etapas, sem "
+                            "gerar um novo roteiro)."
+                        ),
+                    },
+                    "etapa": "roteiro",
+                },
+                criterio_sucesso=(
+                    "usuário decide aprovado=True/False pro roteiro — sem mais "
+                    "tentativas de gerar_roteiro disponíveis"
+                ),
+            )
+
         return Decisao(
             proxima_acao="CHAMAR_FERRAMENTA",
             nome_ferramenta="gerar_roteiro",
@@ -490,6 +556,37 @@ def decidir_proxima_acao(
         # gerar_roteiro em vez de insistir na peça visual, mesmo padrão já
         # usado na reprovação humana da etapa visual.
         if len(tentativas_visual) >= 2:
+            # a escalada em si também tem orçamento limitado — se
+            # chamadas_ferramenta.gerar_roteiro (rules.md: 3) já foi
+            # esgotado (ex: o roteiro já passou por regenerações antes de
+            # chegar aqui), escalar de novo só repetiria o bug original
+            # (tentativa cega que o limite bloqueia, sem_progresso sem
+            # mostrar nada). Não insiste em gerar_peca_visual (aceitar
+            # mais tentativas cegas pra um problema que pode ser de texto
+            # seria o mesmo erro) — mostra a peça atual pro humano decidir,
+            # com uma nota explicando a situação.
+            if len(tentativas_roteiro) >= 3:
+                return Decisao(
+                    proxima_acao="CHAMAR_FERRAMENTA",
+                    nome_ferramenta="solicitar_aprovacao_humana",
+                    argumentos_ferramenta={
+                        "peca": {
+                            "pecas_urls": pecas_urls_atual,
+                            "formato": formato,
+                            "nota": (
+                                "A autocrítica reprovou esta peça 2 vezes seguidas e não "
+                                "há mais tentativas de gerar_roteiro disponíveis nesta "
+                                "execução (rules.md) pra corrigir se o problema for de "
+                                "texto/copy. Revise com atenção antes de aprovar."
+                            ),
+                        },
+                        "etapa": "visual",
+                    },
+                    criterio_sucesso=(
+                        "usuário decide aprovado=True/False pra peça visual — sem mais "
+                        "tentativas de gerar_roteiro disponíveis pra escalar"
+                    ),
+                )
             return Decisao(
                 proxima_acao="CHAMAR_FERRAMENTA",
                 nome_ferramenta="gerar_roteiro",
