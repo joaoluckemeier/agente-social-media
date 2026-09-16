@@ -478,6 +478,39 @@ def decidir_proxima_acao(
         ajustes = autocritica_visual_atual["saida"].get("ajustes_sugeridos", [])
         indices_com_problema = autocritica_visual_atual["saida"].get("indices_com_problema")
 
+        # blindagem estrutural — defesa contra o prompt de autocritica.py um
+        # dia deixar de seguir a instrução de nunca reprovar visual por
+        # motivo de copy (ex: troca de modelo). `tentativas_visual` já reseta
+        # sozinho quando o roteiro muda (só chega aqui sem ter passado pela
+        # aprovação humana no meio — a única coisa que trocaria slides_roteiro
+        # — então todas as tentativas contadas aqui são reprovações internas
+        # seguidas pro MESMO roteiro). Depois de 2 reprovações internas
+        # seguidas, a 3ª chamada — a última antes de esgotar
+        # chamadas_ferramenta.gerar_peca_visual (rules.md: 3) — vai pro
+        # gerar_roteiro em vez de insistir na peça visual, mesmo padrão já
+        # usado na reprovação humana da etapa visual.
+        if len(tentativas_visual) >= 2:
+            return Decisao(
+                proxima_acao="CHAMAR_FERRAMENTA",
+                nome_ferramenta="gerar_roteiro",
+                argumentos_ferramenta={
+                    "tema": tema,
+                    "perfil": perfil.as_dict(),
+                    "insights_anteriores": insights_recentes
+                    + [{
+                        "fonte": "autocritica_conteudo_visual_persistente",
+                        "ajustes_sugeridos": ajustes,
+                    }],
+                    "formato": formato,
+                    "temas_recentes": memoria.temas_recentes(limite=10),
+                },
+                criterio_sucesso=(
+                    "novo roteiro como último recurso — autocrítica reprovou a peça "
+                    "visual 2 vezes seguidas sem aprovar internamente; indício de que "
+                    "o problema pode ser de texto, não de foto/layout"
+                ),
+            )
+
         argumentos_ferramenta: dict[str, Any] = {
             "slides": slides_roteiro,
             "formato": formato,
@@ -533,20 +566,27 @@ def decidir_proxima_acao(
                 criterio_sucesso="usuário fornece feedback específico o suficiente pra ajustar a peça visual",
                 pergunta="A peça visual foi reprovada sem feedback. O que exatamente precisa mudar?",
             )
+        # decisão revista: reprovação na etapa visual sempre volta pro
+        # gerar_roteiro (nunca só pro gerar_peca_visual) — `ajustes` em
+        # gerar_peca_visual só influencia a busca de foto, nunca o
+        # titulo/corpo dos slides, então feedback sobre copy/headline (o
+        # caso mais comum — só fica visível depois de renderizado) nunca
+        # seria incorporado de verdade, e as tentativas se esgotavam contra
+        # chamadas_ferramenta.gerar_peca_visual (rules.md) sem progresso
+        # real. Reabre a aprovação do roteiro e, em seguida, a da peça
+        # visual — mesmo padrão já usado na reprovação de roteiro.
         return Decisao(
             proxima_acao="CHAMAR_FERRAMENTA",
-            nome_ferramenta="gerar_peca_visual",
+            nome_ferramenta="gerar_roteiro",
             argumentos_ferramenta={
-                "slides": slides_roteiro,
+                "tema": tema,
+                "perfil": perfil.as_dict(),
+                "insights_anteriores": insights_recentes
+                + [{"fonte": "feedback_humano_visual", "feedback": feedback}],
                 "formato": formato,
-                "identidade_visual": identidade_visual,
-                "post_id": post_id,
-                "pecas_urls_existentes": pecas_urls_atual,
-                "indices_para_regenerar": list(range(1, len(pecas_urls_atual) + 1)),
-                "ajustes": [feedback],
-                "ids_evitar_historico": memoria.fotos_usadas_recentes(limite=50),
+                "temas_recentes": memoria.temas_recentes(limite=10),
             },
-            criterio_sucesso="novo conjunto de peças incorporando o feedback humano",
+            criterio_sucesso="novo roteiro incorporando o feedback humano dado na etapa visual",
         )
 
     # peça visual aprovada — registrado na memória antes de liberar publicar_conteudo
