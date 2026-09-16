@@ -16,10 +16,16 @@ decisoes-de-engenharia.md, seção 2. O contrato de skills.md declara
 saída real é `pecas_urls: list[str]` — extensão documentada, consumida do
 mesmo jeito por aprovação/publicação.
 
-Nome de arquivo de cada peça: `{post_id}_slide{ordem}.png` (convenção de
-agent.md). `post_id` vem do `execucao_id` da execução (planejador.py o
-injeta nos argumentos); `ordem` é o campo do slide. Numa regeneração
-parcial o nome é o mesmo, então a peça reprovada é sobrescrita no lugar.
+Storage: uma pasta por post em dados/pecas/, nomeada
+`{post_id}-{slug-da-headline}/` — `post_id` primeiro garante unicidade e
+ordenação cronológica no explorador de arquivos (tem a data embutida); o
+slug (do título do slide 1 — a capa) é só pra achar visualmente. Dentro da
+pasta, cada peça é `slide{ordem}.png` (ou `.mp4` pro reel, que só tem 1
+peça mas ainda cai na subpasta do post). Ver `_pasta_post`/`_nome_peca`.
+`post_id` vem do `execucao_id` da execução (planejador.py o injeta nos
+argumentos). Numa regeneração parcial os `slides` não mudam (mesmo
+roteiro aprovado), então a pasta calculada é sempre a mesma dentro da
+execução — a peça reprovada é sobrescrita no lugar, nunca cria pasta nova.
 
 Regeneração parcial (custo real observado): quando `pecas_urls_existentes` +
 `indices_para_regenerar` vêm preenchidos (planejador.py monta isso a partir
@@ -29,6 +35,8 @@ re-renderizadas — as outras são reaproveitadas como estão.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Any
 
 from ..adapters.fotos_estoque.base_adapter import Foto, FotoEstoqueAdapter
@@ -40,6 +48,31 @@ from ..geracao_visual.video.selecionar_video import selecionar_estrategia_video
 DURACAO_ESTIMADA_REEL_SEGUNDOS = 8  # não é parâmetro real da API — só estimativa de custo
 
 _ORIENTACAO_POR_LAYOUT = {"foto_split": "landscape", "capa": "portrait"}
+
+_SLUG_MAX_LEN = 50
+
+
+def _slugificar(texto: str) -> str:
+    """minúsculo, sem acento (normaliza unicode), espaços/pontuação viram
+    hífen, sem hífen duplicado nem nas pontas, truncado em ~50 chars
+    cortando em hífen (não no meio de uma palavra)."""
+    sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", sem_acento.lower()).strip("-")
+    if len(slug) <= _SLUG_MAX_LEN:
+        return slug
+    cortado = slug[:_SLUG_MAX_LEN]
+    return cortado.rsplit("-", 1)[0] if "-" in cortado else cortado
+
+
+def _pasta_post(post_id: str | None, slides: list[dict[str, Any]]) -> str | None:
+    """`{post_id}-{slug-da-headline}` — headline vem do título do slide 1
+    (a capa; único slide em estatico/reel). Sem título (ou vazio), cai só
+    no post_id sem sufixo. Sem post_id, None (ver _nome_peca)."""
+    if not post_id:
+        return None
+    titulo = str((slides[0] if slides else {}).get("titulo") or "").strip()
+    slug = _slugificar(titulo) if titulo else ""
+    return f"{post_id}-{slug}" if slug else post_id
 
 
 def _narracao(slides: list[dict[str, Any]]) -> str:
@@ -53,13 +86,14 @@ def _narracao(slides: list[dict[str, Any]]) -> str:
     return "\n\n".join(blocos)
 
 
-def _nome_peca(post_id: str | None, slide: dict[str, Any], pos: int) -> str | None:
-    """agent.md: `{post_id}_slide{ordem}`. Sem post_id (ex: chamada direta
-    em teste), devolve None -> storage cai num hash."""
-    if not post_id:
+def _nome_peca(pasta: str | None, slide: dict[str, Any], pos: int) -> str | None:
+    """`{pasta}/slide{ordem}` — `pasta` vem de `_pasta_post` (uma por
+    post). Sem pasta (ex: chamada direta em teste sem post_id), devolve
+    None -> storage cai num hash."""
+    if not pasta:
         return None
     ordem = slide.get("ordem") or (pos + 1)
-    return f"{post_id}_slide{ordem}"
+    return f"{pasta}/slide{ordem}"
 
 
 def _slide_pede_foto(slide: dict[str, Any]) -> bool:
@@ -93,6 +127,7 @@ def _gerar_imagens(
     ids_evitar_historico: list[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     total = len(slides)
+    pasta = _pasta_post(post_id, slides)
     regeneracao_parcial = bool(
         pecas_urls_existentes
         and indices_para_regenerar
@@ -134,7 +169,7 @@ def _gerar_imagens(
                 foto_mime=foto.mime if foto else "image/jpeg",
             )
         )
-        nomes.append(_nome_peca(post_id, slide, pos))
+        nomes.append(_nome_peca(pasta, slide, pos))
 
     caminhos = motor_de(identidade_visual).renderizar_varios(htmls, nomes)
     for pos, caminho in zip(posicoes, caminhos):
@@ -162,7 +197,7 @@ def gerar_peca_visual(
 
     if formato == "reel":
         estrategia = selecionar_estrategia_video(carro_chefe=carro_chefe)
-        nome_base = _nome_peca(post_id, slides[0], 0)
+        nome_base = _nome_peca(_pasta_post(post_id, slides), slides[0], 0)
         saida_peca = estrategia.gerar(roteiro=_narracao(slides), formato=formato, nome_base=nome_base)
         usd = DURACAO_ESTIMADA_REEL_SEGUNDOS * estrategia.custo_usd_por_segundo
         return {
