@@ -304,6 +304,7 @@ def decidir_proxima_acao(
                 "perfil": perfil.as_dict(),
                 "insights_anteriores": insights_recentes,
                 "formato": formato,
+                "temas_recentes": memoria.temas_recentes(limite=10),
             },
             criterio_sucesso="roteiro estruturado em slides gerado",
         )
@@ -347,6 +348,7 @@ def decidir_proxima_acao(
                 "insights_anteriores": insights_recentes
                 + [{"fonte": "autocritica_conteudo", "ajustes_sugeridos": ajustes}],
                 "formato": formato,
+                "temas_recentes": memoria.temas_recentes(limite=10),
             },
             criterio_sucesso="novo roteiro incorporando os ajustes da autocrítica",
         )
@@ -403,6 +405,7 @@ def decidir_proxima_acao(
                 "insights_anteriores": insights_recentes
                 + [{"fonte": "feedback_humano_roteiro", "feedback": feedback}],
                 "formato": formato,
+                "temas_recentes": memoria.temas_recentes(limite=10),
             },
             criterio_sucesso="novo roteiro incorporando o feedback humano",
         )

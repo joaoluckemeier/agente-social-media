@@ -61,6 +61,40 @@ viral por viral — precisa fechar conectando com a oferta.
   comentário, por exemplo. Mas cada post tem UMA ÚNICA CTA, nunca
   mais de uma opção competindo entre si (ex: "diagnóstico no link
   da bio" OU "comente DIAGNÓSTICO" — nunca as duas juntas no mesmo post).
+- NUNCA inclua número de R$ de faturamento/receita prometido, nem \
+estimativa numérica de resultado financeiro — mesmo que pareça realista, \
+isso vira propaganda enganosa. Ganho pode ser descrito qualitativamente \
+(mais visita agendada, lead que não esfria), nunca em R$.
+
+Mecanismo e CTA:
+- No fechamento/CTA do post, sempre que fizer sentido, nomeie o "Sistema \
+Comercial Moveleiro" como a solução única — nunca como "IA" genérica, e \
+nunca mencionando nome de agente/ferramenta interna (é implementação, não \
+é o que aparece pro cliente final).
+- "Vazamento Silencioso de Vendas", "Janela de Ouro" e "Presença Digital \
+Fraca" são vocabulário fixo da marca — reutilize-os ao longo de vários \
+posts, não é preciso inventar nome novo de problema a cada post.
+- As "Provas de sustentação" e "Objeções a quebrar" do perfil de marca são \
+material de apoio: use com moderação (não cite estatística em todo post), \
+e nunca cite HubSpot como fonte.
+
+Variedade entre posts:
+- Se a entrada trouxer "temas_recentes" (temas de posts anteriores), não \
+repita a mesma estrutura de gancho nem a mesma frente/mecanismo nomeado \
+desses temas — varie o TIPO de gancho e a FRENTE do problema, não só a \
+palavra.
+- Frente do problema (alterne entre elas): Frente 1 (geração de demanda) \
+— anúncio que não converte, tráfego caro que esfria, ou "Presença Digital \
+Fraca"; Frente 2 (atendimento/fechamento) — "Vazamento Silencioso de \
+Vendas", "Janela de Ouro" (o período curto pra responder antes de perder \
+a atenção pro concorrente).
+- Tipo de gancho (alterne entre eles): pergunta direta, confissão de erro \
+comum ("a maioria das lojas comete esse erro..."), estatística/número \
+(usando as "Provas de sustentação", nunca citando HubSpot), contraste \
+antes-depois, ou abrir citando um dos nomes do mecanismo ("vazamento \
+silencioso", "janela de ouro", "presença digital fraca") direto no gancho.
+- Nunca repita a mesma combinação de frente + tipo de gancho dos temas \
+recentes duas vezes seguidas.
 
 Se a entrada trouxer "insights_anteriores" com itens de fonte \
 "autocritica_conteudo" ou "feedback_humano_roteiro", esses são AJUSTES que \
@@ -168,7 +202,13 @@ def _normalizar_slides(slides_brutos: Any) -> list[dict[str, Any]]:
 
 
 def gerar_roteiro(
-    *, tema: str, perfil: dict[str, Any], insights_anteriores: list[Any], formato: str, **_: Any
+    *,
+    tema: str,
+    perfil: dict[str, Any],
+    insights_anteriores: list[Any],
+    formato: str,
+    temas_recentes: list[str] | None = None,
+    **_: Any,
 ) -> dict[str, Any]:
     """entrada: {tema, perfil, insights_anteriores, formato} · saida: {slides, formato}"""
     cliente = OpenAI(api_key=_chave_openai())
@@ -178,6 +218,7 @@ def gerar_roteiro(
             "perfil_marca": perfil,
             "insights_anteriores": insights_anteriores,
             "formato": formato,
+            "temas_recentes": temas_recentes or [],
         },
         ensure_ascii=False,
     )

@@ -71,6 +71,13 @@ class MemoriaRepository(ABC):
     def buscar_post(self, post_id: str) -> dict[str, Any] | None:
         ...
 
+    # -- variedade de tema/gancho entre POSTS diferentes (mesmo padrão de
+    # fotos_usadas_recentes — gerar_roteiro não repete estrutura entre
+    # execuções) --------------------------------------------------------
+    @abstractmethod
+    def temas_recentes(self, limite: int) -> list[str]:
+        ...
+
     # -- tabela insights (escrita pelo agente-analista-metricas) -------
     @abstractmethod
     def buscar_insights_recentes(self, limite: int) -> list[dict[str, Any]]:
@@ -266,6 +273,15 @@ class SQLiteMemoriaRepository(MemoriaRepository):
             except (json.JSONDecodeError, TypeError):
                 pass  # posts antigos (v1, antes do carrossel) guardavam string simples
         return post
+
+    # -- temas recentes ---------------------------------------------------
+    def temas_recentes(self, limite: int) -> list[str]:
+        rows = self._conn.execute(
+            "SELECT tema FROM posts WHERE tema IS NOT NULL AND tema != '' "
+            "ORDER BY publicado_em DESC LIMIT ?",
+            (limite,),
+        ).fetchall()
+        return [row["tema"] for row in rows]
 
     # -- insights (lidos aqui; escritos pelo agente-analista-metricas) --
     def buscar_insights_recentes(self, limite: int) -> list[dict[str, Any]]:
